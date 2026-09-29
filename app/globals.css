@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply text-navy;
+  background-color: #f7f4ed;
+  min-height: 100vh;
+}
+
+::selection {
+  background-color: #e7e2d8;
+  color: #0b1220;
+}
