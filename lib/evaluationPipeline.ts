@@ -9,8 +9,19 @@ export async function runEvaluationPipeline(params: {
   role: "PM" | "SPM";
   experience: AnonymizedExperience;
 }) {
-  const raw = await runStructuredEvaluation(params.experience, params.role);
-  const evaluation = validateAndNormalizeEvaluation(raw);
+  // A truncated/malformed generation is treated as a failure by
+  // validateAndNormalizeEvaluation() rather than silently persisted as a
+  // false "no evidence anywhere" result — retry once before giving up,
+  // since this appears to be an intermittent generation issue, not systemic.
+  let evaluation;
+  try {
+    const raw = await runStructuredEvaluation(params.experience, params.role);
+    evaluation = validateAndNormalizeEvaluation(raw);
+  } catch (err) {
+    console.error("First evaluation attempt failed, retrying once:", err instanceof Error ? err.message : err);
+    const raw = await runStructuredEvaluation(params.experience, params.role);
+    evaluation = validateAndNormalizeEvaluation(raw);
+  }
 
   const evaluationRow = await db.insert<{ id: string }>("evaluations", {
     application_id: params.applicationId,

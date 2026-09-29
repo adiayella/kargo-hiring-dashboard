@@ -227,6 +227,17 @@ export function validateAndNormalizeEvaluation(
 ): Omit<Evaluation, "id" | "applicationId" | "rubricVersion" | "createdAt"> {
   const rawCriteria = Array.isArray(raw.criteria) ? raw.criteria : [];
 
+  // A generation that returns zero (or too few) criteria is malformed — likely
+  // truncated output — not a candidate with genuinely no evidence anywhere.
+  // Silently scoring that as 0/100 "do not advance" would be a false result
+  // presented as a real evaluation, so fail loudly and let the caller retry
+  // instead of persisting a misleading rejection.
+  if (rawCriteria.length < CRITERIA.length) {
+    throw new Error(
+      `Gemini returned an incomplete evaluation (${rawCriteria.length}/${CRITERIA.length} criteria) — likely truncated output, not a real zero-evidence result`
+    );
+  }
+
   let overallScore = 0;
   const criteria = CRITERIA.map((c) => {
     const match = rawCriteria.find((r) => r?.name === c.label);

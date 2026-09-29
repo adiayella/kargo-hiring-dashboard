@@ -10,3 +10,6 @@ next-env.d.ts
 .DS_Store
 public/uploads/
 dev.log
+
+.vercel
+vercel-env.txt
