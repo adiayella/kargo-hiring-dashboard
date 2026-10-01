@@ -1,6 +1,6 @@
 import { db, eq } from "./db";
 import { logDecisionEvent } from "./audit";
-import { runStructuredEvaluation, validateAndNormalizeEvaluation } from "./gemini";
+import { runStructuredEvaluation, validateAndNormalizeEvaluation } from "./ai";
 import { RUBRIC_VERSION } from "./rubric";
 import type { AnonymizedExperience } from "./types";
 

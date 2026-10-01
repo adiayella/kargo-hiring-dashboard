@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, eq } from "@/lib/db";
-import { generateCandidateEmail, type HoldSubtype } from "@/lib/gemini";
+import { generateCandidateEmail, type HoldSubtype } from "@/lib/ai";
 import { logDecisionEvent } from "@/lib/audit";
 import type { EmailOutcome, ReasonDetailLevel } from "@/lib/types";
 

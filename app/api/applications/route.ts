@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, eq } from "@/lib/db";
 import { uploadCvFile } from "@/lib/blob";
 import { extractTextFromFile } from "@/lib/parseCv";
-import { extractCandidateData } from "@/lib/gemini";
+import { extractCandidateData } from "@/lib/ai";
 import { runEvaluationPipeline } from "@/lib/evaluationPipeline";
 import { logDecisionEvent } from "@/lib/audit";
 

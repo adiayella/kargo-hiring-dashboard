@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import OpenAI from "openai";
 import { RUBRIC_MARKDOWN, CRITERIA, recommendationForScore } from "./rubric";
 import type {
   AnonymizedExperience,
@@ -12,63 +12,83 @@ import type {
 } from "./types";
 
 function client() {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
-  return new GoogleGenerativeAI(apiKey);
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
+  return new OpenAI({ apiKey });
 }
 
-const MODEL_NAME = "gemini-3.8-flash";
+const MODEL_NAME = "gpt-4o-mini";
+
+async function structuredCompletion<T>(params: { prompt: string; schemaName: string; schema: Record<string, unknown> }): Promise<T> {
+  const result = await client().chat.completions.create({
+    model: MODEL_NAME,
+    messages: [{ role: "user", content: params.prompt }],
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: params.schemaName, strict: true, schema: params.schema },
+    },
+  });
+
+  const choice = result.choices[0];
+  if (choice.message.refusal) {
+    throw new Error(`Model refused to generate a response: ${choice.message.refusal}`);
+  }
+  const content = choice.message.content;
+  if (!content) {
+    throw new Error("Model returned an empty response");
+  }
+  return JSON.parse(content) as T;
+}
 
 // --- Step 1: extract structured data from raw CV text, PII kept separate ---
 
 const extractionSchema = {
-  type: SchemaType.OBJECT,
+  type: "object",
   properties: {
     pii: {
-      type: SchemaType.OBJECT,
+      type: "object",
       properties: {
-        name: { type: SchemaType.STRING, nullable: true },
-        email: { type: SchemaType.STRING, nullable: true },
-        phone: { type: SchemaType.STRING, nullable: true },
-        address: { type: SchemaType.STRING, nullable: true },
+        name: { type: ["string", "null"] },
+        email: { type: ["string", "null"] },
+        phone: { type: ["string", "null"] },
+        address: { type: ["string", "null"] },
       },
       required: ["name", "email", "phone", "address"],
+      additionalProperties: false,
     },
     experience: {
-      type: SchemaType.OBJECT,
+      type: "object",
       properties: {
         roles_held: {
-          type: SchemaType.ARRAY,
+          type: "array",
           items: {
-            type: SchemaType.OBJECT,
+            type: "object",
             properties: {
-              title: { type: SchemaType.STRING },
-              organization_type: { type: SchemaType.STRING },
-              start_date: { type: SchemaType.STRING, nullable: true },
-              end_date: { type: SchemaType.STRING, nullable: true },
-              responsibilities: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-              achievements: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+              title: { type: "string" },
+              organization_type: { type: "string" },
+              start_date: { type: ["string", "null"] },
+              end_date: { type: ["string", "null"] },
+              responsibilities: { type: "array", items: { type: "string" } },
+              achievements: { type: "array", items: { type: "string" } },
             },
-            required: ["title", "organization_type", "responsibilities", "achievements"],
+            required: ["title", "organization_type", "start_date", "end_date", "responsibilities", "achievements"],
+            additionalProperties: false,
           },
         },
-        tools_and_platforms: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-        metrics_mentioned: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+        tools_and_platforms: { type: "array", items: { type: "string" } },
+        metrics_mentioned: { type: "array", items: { type: "string" } },
       },
       required: ["roles_held", "tools_and_platforms", "metrics_mentioned"],
+      additionalProperties: false,
     },
   },
   required: ["pii", "experience"],
+  additionalProperties: false,
 } as const;
 
 export async function extractCandidateData(
   rawText: string
 ): Promise<{ pii: PiiExtraction; experience: AnonymizedExperience }> {
-  const model = client().getGenerativeModel({
-    model: MODEL_NAME,
-    generationConfig: { responseMimeType: "application/json", responseSchema: extractionSchema as any },
-  });
-
   const prompt = `You are extracting structured data from a candidate's CV/resume for an applicant tracking system.
 
 Split your output into two parts:
@@ -82,28 +102,26 @@ CV TEXT:
 ${rawText}
 """`;
 
-  const result = await model.generateContent(prompt);
-  const parsed = JSON.parse(result.response.text());
-  return parsed;
+  return structuredCompletion({ prompt, schemaName: "cv_extraction", schema: extractionSchema });
 }
 
 // --- Structured evaluation workflow (human-in-the-loop) ---
 
-const CONFIDENCE_ENUM = { type: SchemaType.STRING, enum: ["high", "medium", "low"] } as const;
+const CONFIDENCE_ENUM = { type: "string", enum: ["high", "medium", "low"] } as const;
 
 const evaluationSchema = {
-  type: SchemaType.OBJECT,
+  type: "object",
   properties: {
     candidateSummary: {
-      type: SchemaType.OBJECT,
+      type: "object",
       properties: {
-        totalExperience: { type: SchemaType.STRING },
-        productExperience: { type: SchemaType.STRING },
-        mostRelevantExperience: { type: SchemaType.STRING },
-        relevantProjects: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-        relevantTools: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-        relevantDomains: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-        missingInformation: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+        totalExperience: { type: "string" },
+        productExperience: { type: "string" },
+        mostRelevantExperience: { type: "string" },
+        relevantProjects: { type: "array", items: { type: "string" } },
+        relevantTools: { type: "array", items: { type: "string" } },
+        relevantDomains: { type: "array", items: { type: "string" } },
+        missingInformation: { type: "array", items: { type: "string" } },
       },
       required: [
         "totalExperience",
@@ -114,42 +132,45 @@ const evaluationSchema = {
         "relevantDomains",
         "missingInformation",
       ],
+      additionalProperties: false,
     },
     criteria: {
-      type: SchemaType.ARRAY,
+      type: "array",
       items: {
-        type: SchemaType.OBJECT,
+        type: "object",
         properties: {
-          name: { type: SchemaType.STRING },
-          score: { type: SchemaType.INTEGER },
-          evidence: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-          missingEvidence: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+          name: { type: "string" },
+          score: { type: "integer" },
+          evidence: { type: "array", items: { type: "string" } },
+          missingEvidence: { type: "array", items: { type: "string" } },
           confidence: CONFIDENCE_ENUM,
-          interviewQuestions: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+          interviewQuestions: { type: "array", items: { type: "string" } },
         },
         required: ["name", "score", "evidence", "missingEvidence", "confidence", "interviewQuestions"],
+        additionalProperties: false,
       },
     },
     mustHaveGates: {
-      type: SchemaType.ARRAY,
+      type: "array",
       items: {
-        type: SchemaType.OBJECT,
+        type: "object",
         properties: {
-          gate: { type: SchemaType.STRING },
-          passed: { type: SchemaType.BOOLEAN },
-          note: { type: SchemaType.STRING, nullable: true },
+          gate: { type: "string" },
+          passed: { type: "boolean" },
+          note: { type: ["string", "null"] },
         },
-        required: ["gate", "passed"],
+        required: ["gate", "passed", "note"],
+        additionalProperties: false,
       },
     },
-    gatesRequiringValidation: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-    strongestMatches: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-    transferableExperience: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-    materialGaps: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-    riskFactors: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-    internalReasoning: { type: SchemaType.STRING },
-    candidateFacingReason: { type: SchemaType.STRING },
-    recommendedRole: { type: SchemaType.STRING },
+    gatesRequiringValidation: { type: "array", items: { type: "string" } },
+    strongestMatches: { type: "array", items: { type: "string" } },
+    transferableExperience: { type: "array", items: { type: "string" } },
+    materialGaps: { type: "array", items: { type: "string" } },
+    riskFactors: { type: "array", items: { type: "string" } },
+    internalReasoning: { type: "string" },
+    candidateFacingReason: { type: "string" },
+    recommendedRole: { type: "string" },
     confidence: CONFIDENCE_ENUM,
   },
   required: [
@@ -166,17 +187,13 @@ const evaluationSchema = {
     "recommendedRole",
     "confidence",
   ],
+  additionalProperties: false,
 } as const;
 
 export async function runStructuredEvaluation(
   experience: AnonymizedExperience,
   role: "PM" | "SPM"
 ): Promise<RawEvaluation> {
-  const model = client().getGenerativeModel({
-    model: MODEL_NAME,
-    generationConfig: { responseMimeType: "application/json", responseSchema: evaluationSchema as any },
-  });
-
   const prompt = `You are evaluating a job candidate for Kargo's ${role} role against a fixed rubric. Score ONLY the criteria below — do not invent your own criteria.
 
 ${RUBRIC_MARKDOWN}
@@ -201,8 +218,7 @@ Rules:
 - "recommendedRole": which role (PM or SPM) this candidate's evidence best fits, which may differ from the role they applied for.
 - "confidence": your overall confidence in this evaluation given evidence completeness.`;
 
-  const result = await model.generateContent(prompt);
-  return JSON.parse(result.response.text()) as RawEvaluation;
+  return structuredCompletion({ prompt, schemaName: "candidate_evaluation", schema: evaluationSchema });
 }
 
 function clampScore(score: unknown): number {
@@ -218,8 +234,8 @@ function toStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
 }
 
-// Validates and normalizes Gemini's raw JSON into a trustworthy shape before it
-// ever reaches the database or the UI. Recomputes every number server-side —
+// Validates and normalizes the model's raw JSON into a trustworthy shape before
+// it ever reaches the database or the UI. Recomputes every number server-side —
 // the model's own math is never trusted — and never lets a criterion or field
 // silently vanish just because the model omitted it.
 export function validateAndNormalizeEvaluation(
@@ -234,7 +250,7 @@ export function validateAndNormalizeEvaluation(
   // instead of persisting a misleading rejection.
   if (rawCriteria.length < CRITERIA.length) {
     throw new Error(
-      `Gemini returned an incomplete evaluation (${rawCriteria.length}/${CRITERIA.length} criteria) — likely truncated output, not a real zero-evidence result`
+      `Model returned an incomplete evaluation (${rawCriteria.length}/${CRITERIA.length} criteria) — likely truncated output, not a real zero-evidence result`
     );
   }
 
@@ -303,12 +319,13 @@ export function validateAndNormalizeEvaluation(
 // --- Candidate-facing email generation (recruiter-approved decision only) ---
 
 const emailSchema = {
-  type: SchemaType.OBJECT,
+  type: "object",
   properties: {
-    subject: { type: SchemaType.STRING },
-    body: { type: SchemaType.STRING },
+    subject: { type: "string" },
+    body: { type: "string" },
   },
   required: ["subject", "body"],
+  additionalProperties: false,
 } as const;
 
 export type HoldSubtype = "request_info" | "neutral_update";
@@ -325,11 +342,6 @@ export async function generateCandidateEmail(params: {
   materialGaps: string[];
   candidateFacingReason: string;
 }): Promise<CandidateEmailDraft> {
-  const model = client().getGenerativeModel({
-    model: MODEL_NAME,
-    generationConfig: { responseMimeType: "application/json", responseSchema: emailSchema as any },
-  });
-
   const name = params.candidateName ?? "there";
 
   const holdInstruction =
@@ -383,6 +395,5 @@ Hard rules:
 - Sign off as "The Kargo Hiring Team".
 - Return "subject" and "body" only.`;
 
-  const result = await model.generateContent(prompt);
-  return JSON.parse(result.response.text()) as CandidateEmailDraft;
+  return structuredCompletion({ prompt, schemaName: "candidate_email", schema: emailSchema });
 }

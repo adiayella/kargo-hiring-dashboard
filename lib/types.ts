@@ -46,7 +46,7 @@ export interface EvaluationCriterionResult {
   interviewQuestions: string[];
 }
 
-// The raw shape Gemini is asked to return. Treated as untrusted until
+// The raw shape the model is asked to return. Treated as untrusted until
 // validateEvaluation() below checks it against the rubric and clamps values.
 export interface RawEvaluation {
   candidateSummary: Omit<CandidateSummary, never> & Record<string, unknown>;

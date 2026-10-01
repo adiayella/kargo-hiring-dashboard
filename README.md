@@ -8,7 +8,7 @@ explains, and pre-drafts — Arjun looks, decides, and clicks.
 - Next.js (App Router) + TypeScript + Tailwind
 - Neon Postgres, accessed via a direct connection (`pg`) — see [lib/db.ts](lib/db.ts)
 - Vercel Blob for CV file storage (falls back to local disk under `public/uploads` if unconfigured — dev only)
-- Google Gemini for CV extraction, rubric scoring, rationale, and drafting
+- OpenAI for CV extraction, rubric scoring, rationale, and drafting — see [lib/ai.ts](lib/ai.ts)
 - Resend for outbound email (founder-triggered only)
 
 **No login/auth.** The dashboard is unauthenticated — anyone with the URL can view
@@ -22,8 +22,8 @@ deploying this anywhere reachable by others.
    host) into `DATABASE_URL`.
 2. **File storage** — create a Vercel Blob store and copy its token into `BLOB_READ_WRITE_TOKEN`.
    Optional for local dev — without it, uploads are written to `public/uploads` instead.
-3. **Gemini** — create an API key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
-   and put it in `GEMINI_API_KEY`.
+3. **OpenAI** — create an API key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+   and put it in `OPENAI_API_KEY`.
 4. **Resend** — create an API key and a verified sending domain/address, put them in
    `RESEND_API_KEY` / `RESEND_FROM_EMAIL`.
 5. Copy `.env.local.example` to `.env.local` and fill in the values above.
@@ -33,7 +33,7 @@ deploying this anywhere reachable by others.
 ## Workflow
 
 1. **Upload** — founder picks a CV (PDF/DOCX) and a role (PM/SPM) in the dashboard.
-2. **Extract** — the file is stored in Vercel Blob; text is extracted server-side; Gemini
+2. **Extract** — the file is stored in Vercel Blob; text is extracted server-side; OpenAI
    splits it into PII (name/email/phone/address, kept server-side) and anonymized
    experience data (roles, responsibilities, achievements, tools, metrics).
 3. **Score** — the anonymized experience is scored against the rubric embedded verbatim in
@@ -42,7 +42,7 @@ deploying this anywhere reachable by others.
    labeled "not evidenced" — never inferred. The weighted total and band (`Reject` < 65,
    `Hold` 65–75, `Strong Pool` > 75) are computed in code from the model's per-criterion
    scores, not trusted from free-form model math.
-4. **Draft** — Gemini generates an interview brief and a role/band-appropriate draft email
+4. **Draft** — OpenAI generates an interview brief and a role/band-appropriate draft email
    (invite / hold / reject), stored against the application. Nothing is sent automatically.
 5. **Review & send** — the dashboard shows a ranked, filterable list (by role and band).
    Each row expands to show the six scores with evidence, the rationale, the interview

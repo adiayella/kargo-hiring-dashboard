@@ -41,7 +41,7 @@ create table applications (
 create table candidates (
   id uuid primary key default gen_random_uuid(),
   application_id uuid not null references applications(id) on delete cascade,
-  extracted_json jsonb not null, -- anonymized structured CV data, no PII, sent to Gemini
+  extracted_json jsonb not null, -- anonymized structured CV data, no PII, sent to the LLM
   raw_text text not null,        -- full extracted text, server-side only, may contain PII
   created_at timestamptz not null default now()
 );
