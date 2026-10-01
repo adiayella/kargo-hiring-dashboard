@@ -34,11 +34,11 @@ export function UploadForm({ onUploaded }: { onUploaded: () => void }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="border border-stone bg-white p-5">
+    <form onSubmit={onSubmit} className="rounded-xl border border-stone bg-white p-5 shadow-card transition-shadow hover:shadow-card-hover">
       <div className="flex flex-wrap items-end gap-4">
         <div className="min-w-[220px] flex-1 space-y-1.5">
           <label className="block text-xs font-medium uppercase tracking-wide text-navy/50">CV file (PDF or DOCX)</label>
-          <label className="flex cursor-pointer items-center gap-2 border border-dashed border-stone bg-ivory/40 px-3 py-2 text-sm text-navy/60 transition-colors hover:border-gold hover:bg-gold/5">
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-stone bg-ivory/40 px-3 py-2 text-sm text-navy/60 transition-colors hover:border-gold hover:bg-gold/5">
             <svg className="h-4 w-4 shrink-0 text-navy/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
                 strokeLinecap="round"
@@ -63,7 +63,7 @@ export function UploadForm({ onUploaded }: { onUploaded: () => void }) {
           <select
             value={role}
             onChange={(e) => setRole(e.target.value as "PM" | "SPM")}
-            className="border border-stone bg-white px-3 py-2 text-sm text-navy focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
+            className="rounded-lg border border-stone bg-white px-3 py-2 text-sm text-navy transition-colors focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
           >
             <option value="PM">Product Manager</option>
             <option value="SPM">Senior Product Manager</option>
@@ -72,7 +72,7 @@ export function UploadForm({ onUploaded }: { onUploaded: () => void }) {
         <button
           type="submit"
           disabled={!file || status === "uploading"}
-          className="border border-navy bg-navy px-4 py-2 text-sm font-medium text-ivory transition-colors hover:bg-charcoal disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-lg border border-navy bg-navy px-4 py-2 text-sm font-medium text-ivory transition-colors hover:bg-charcoal disabled:cursor-not-allowed disabled:opacity-50"
         >
           {status === "uploading" ? "Evaluating..." : "Upload & evaluate"}
         </button>

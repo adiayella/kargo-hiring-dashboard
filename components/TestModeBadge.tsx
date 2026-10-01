@@ -20,7 +20,7 @@ export function TestModeBadge({ className = "" }: { className?: string }) {
   if (!config || config.mode !== "test") return null;
   return (
     <span
-      className={`inline-flex items-center gap-1.5 border border-amber/40 bg-amber/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-amber ${className}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border border-amber/40 bg-amber/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-amber shadow-sm ${className}`}
       title={`All emails are redirected to ${config.testRecipient ?? "the configured test recipient"}`}
     >
       <span className="h-1.5 w-1.5 rounded-full bg-amber" />
